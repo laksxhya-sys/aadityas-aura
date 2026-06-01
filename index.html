@@ -23,7 +23,7 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: #110b05;
+            background: radial-gradient(circle at center, #fdfbf7 0%, #f5eedf 100%);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -42,65 +42,74 @@
             flex-direction: column;
             align-items: center;
             text-align: center;
+            max-width: 320px;
+            padding: 20px;
         }
 
-        .loader-logo {
-            font-family: 'Cinzel', serif;
-            font-size: 42px;
-            font-weight: 700;
-            color: #d4a843;
-            text-shadow: 0 0 20px rgba(212, 168, 67, 0.4);
+        .loader-progress-container {
+            position: relative;
+            width: 110px;
+            height: 110px;
             margin-bottom: 24px;
-            animation: pulse-logo 2s infinite ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        .loader-spinner {
-            width: 50px;
-            height: 50px;
-            border: 2px solid rgba(212, 168, 67, 0.1);
-            border-top: 2px solid #d4a843;
-            border-radius: 50%;
-            animation: spin 1s infinite linear;
-            margin-bottom: 20px;
-            box-shadow: 0 0 15px rgba(212, 168, 67, 0.15);
+        .loader-progress-ring circle {
+            transition: stroke-dashoffset 0.1s ease-out;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+
+        .loader-percent {
+            position: absolute;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--gold);
+            letter-spacing: -0.5px;
         }
 
         .loader-text {
             font-family: 'Cinzel', serif;
-            color: #fff9ee;
-            font-size: 18px;
+            color: var(--brown2);
+            font-size: 20px;
             letter-spacing: 4px;
             text-transform: uppercase;
             margin-bottom: 6px;
+            font-weight: 700;
         }
 
         .loader-sub {
             font-family: 'Montserrat', sans-serif;
-            color: #b8922a;
+            color: var(--gold);
             font-size: 10px;
             font-weight: 600;
             letter-spacing: 2px;
             text-transform: uppercase;
-            margin-bottom: 24px;
+            margin-bottom: 12px;
         }
 
-        .loader-progress {
+        .loader-status {
             font-family: 'Montserrat', sans-serif;
-            color: rgba(255, 249, 238, 0.4);
+            color: rgba(61, 31, 0, 0.6);
             font-size: 9px;
             font-weight: 500;
             letter-spacing: 1px;
             text-transform: uppercase;
+            margin-bottom: 24px;
         }
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        @keyframes pulse-logo {
-            0%, 100% { transform: scale(1); opacity: 0.8; }
-            50% { transform: scale(1.08); opacity: 1; }
+        .loader-note {
+            font-family: 'Montserrat', sans-serif;
+            color: rgba(61, 31, 0, 0.4);
+            font-size: 8.5px;
+            font-weight: 500;
+            line-height: 1.4;
+            font-style: italic;
+            border-top: 1px solid rgba(61, 31, 0, 0.08);
+            padding-top: 14px;
         }
 
         * {
@@ -127,7 +136,8 @@
         }
 
         body {
-            background: #1a1208;
+            background: #1a1208 url("https://drive.google.com/uc?export=view&id=1Vwu5uI8nZYxO4qGn1NylrE8ZaefoIqF_") no-repeat center center fixed;
+            background-size: cover;
             font-family: 'Montserrat', sans-serif;
             min-height: 100vh;
         }
@@ -504,7 +514,7 @@
             display: flex;
             justify-content: center;
             padding: 24px 10px 36px;
-            background: #1a1208;
+            background: transparent;
         }
 
         #bill {
@@ -1010,11 +1020,17 @@
     <!-- PRESET LOADER FOR BACKGROUND IMAGE -->
     <div id="loader">
         <div class="loader-content">
-            <div class="loader-logo">A</div>
-            <div class="loader-spinner"></div>
+            <div class="loader-progress-container">
+                <svg class="loader-progress-ring" width="100" height="100" viewBox="0 0 100 100">
+                    <circle class="bg-circle" cx="50" cy="50" r="45" fill="none" stroke="rgba(61, 31, 0, 0.08)" stroke-width="4"></circle>
+                    <circle class="fg-circle" id="loaderCircle" cx="50" cy="50" r="45" fill="none" stroke="var(--gold)" stroke-width="4" stroke-dasharray="283" stroke-dashoffset="283"></circle>
+                </svg>
+                <div class="loader-percent" id="loaderPercent">0%</div>
+            </div>
             <div class="loader-text">Aaditya's Aura</div>
             <div class="loader-sub">Premium Jewellery &amp; Fragrances</div>
-            <div class="loader-progress">Loading elegant assets...</div>
+            <div class="loader-status" id="loaderStatus">Loading assets...</div>
+            <div class="loader-note">First load may take a moment to fetch high-resolution background assets. Please wait.</div>
         </div>
     </div>
 
@@ -1240,24 +1256,54 @@
     <script>
 
 
-        // Preload template background image
+        // Preload template background image with progress tracking
         (function() {
-            const bgUrl = "https://iili.io/C3ZCeqB.png";
+            const bgUrl = "https://iili.io/C3Lhlhx.png";
             const img = new Image();
+            const percentEl = document.getElementById('loaderPercent');
+            const statusEl = document.getElementById('loaderStatus');
+            const circleEl = document.getElementById('loaderCircle');
+            
+            let progress = 0;
+            const dashArray = 283; // 2 * Math.PI * 45
+            let interval;
+            
+            function updateProgress(target, speed = 10, onComplete = null) {
+                clearInterval(interval);
+                interval = setInterval(() => {
+                    if (progress >= target) {
+                        clearInterval(interval);
+                        if (onComplete) onComplete();
+                        return;
+                    }
+                    progress++;
+                    percentEl.textContent = `${progress}%`;
+                    const offset = dashArray - (dashArray * progress) / 100;
+                    circleEl.style.strokeDashoffset = offset;
+                    
+                    if (progress >= 100) {
+                        statusEl.textContent = "Assets Prepared";
+                        setTimeout(() => {
+                            const loader = document.getElementById('loader');
+                            if (loader) loader.classList.add('loaded');
+                        }, 200);
+                    }
+                }, speed);
+            }
+
+            // Start a smooth initial load up to 88%
+            updateProgress(88, 15);
+
             img.onload = function() {
                 document.getElementById('bill').style.backgroundImage = `url('${bgUrl}')`;
-                const loader = document.getElementById('loader');
-                if (loader) {
-                    loader.classList.add('loaded');
-                }
+                updateProgress(100, 2);
             };
+            
             img.onerror = function() {
                 // Fallback in case of offline/network issues
-                const loader = document.getElementById('loader');
-                if (loader) {
-                    loader.classList.add('loaded');
-                }
+                updateProgress(100, 2);
             };
+            
             img.src = bgUrl;
             if (img.complete) {
                 img.onload();
@@ -1578,44 +1624,6 @@
         /* INIT */
         renderCtrl(); upd();
     </script>
-<!-- Code injected by live-server -->
-<script>
-	// <![CDATA[  <-- For SVG support
-	if ('WebSocket' in window) {
-		(function () {
-			function refreshCSS() {
-				var sheets = [].slice.call(document.getElementsByTagName("link"));
-				var head = document.getElementsByTagName("head")[0];
-				for (var i = 0; i < sheets.length; ++i) {
-					var elem = sheets[i];
-					var parent = elem.parentElement || head;
-					parent.removeChild(elem);
-					var rel = elem.rel;
-					if (elem.href && typeof rel != "string" || rel.length == 0 || rel.toLowerCase() == "stylesheet") {
-						var url = elem.href.replace(/(&|\?)_cacheOverride=\d+/, '');
-						elem.href = url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cacheOverride=' + (new Date().valueOf());
-					}
-					parent.appendChild(elem);
-				}
-			}
-			var protocol = window.location.protocol === 'http:' ? 'ws://' : 'wss://';
-			var address = protocol + window.location.host + window.location.pathname + '/ws';
-			var socket = new WebSocket(address);
-			socket.onmessage = function (msg) {
-				if (msg.data == 'reload') window.location.reload();
-				else if (msg.data == 'refreshcss') refreshCSS();
-			};
-			if (sessionStorage && !sessionStorage.getItem('IsThisFirstTime_Log_From_LiveServer')) {
-				console.log('Live reload enabled.');
-				sessionStorage.setItem('IsThisFirstTime_Log_From_LiveServer', true);
-			}
-		})();
-	}
-	else {
-		console.error('Upgrade your browser. This Browser is NOT supported WebSocket for Live-Reloading.');
-	}
-	// ]]>
-</script>
 </body>
 
 </html>
