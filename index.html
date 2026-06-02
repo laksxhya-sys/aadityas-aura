@@ -1,5 +1,6 @@
 
 
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -136,7 +137,7 @@
         }
 
         body {
-            background: #1a1208 url("https://drive.google.com/uc?export=view&id=1Vwu5uI8nZYxO4qGn1NylrE8ZaefoIqF_") no-repeat center center fixed;
+            background: #1a1208 url("lol_compressed.jpg") no-repeat center center fixed;
             background-size: cover;
             font-family: 'Montserrat', sans-serif;
             min-height: 100vh;
@@ -1135,6 +1136,14 @@
                 <label>Custom Payment</label>
                 <input id="payCustom" type="text" placeholder="e.g. UPI, Card…" oninput="upd()">
             </div>
+            <div>
+                <label>Print / Save Quality</label>
+                <select id="printQuality" onchange="upd()">
+                    <option value="standard">Standard (Compact File, 2x Scale)</option>
+                    <option value="high">High (Clear Print, 3x Scale)</option>
+                    <option value="max" selected>Maximum Possible (Ultra Sharp, 4x Scale)</option>
+                </select>
+            </div>
         </div>
 
         <div class="actions">
@@ -1167,12 +1176,12 @@
                         <span class="fl">Name (M/s.):</span>
                         <span class="line-fill" id="out-cust"></span>
                     </div>
-                    <div class="field-row-split">
-                        <div class="field-line" style="flex: 1.2;">
+                    <div class="field-row-split" id="out-contact-row">
+                        <div class="field-line" id="out-cust-num-wrap" style="flex: 1.2;">
                             <span class="fl">Contact (Number):</span>
                             <span class="line-fill" id="out-cust-num"></span>
                         </div>
-                        <div class="field-line" style="flex: 1;">
+                        <div class="field-line" id="out-cust-alt-wrap" style="flex: 1;">
                             <span class="fl">Contact (Alt):</span>
                             <span class="line-fill" id="out-cust-alt"></span>
                         </div>
@@ -1206,7 +1215,7 @@
                         <div class="qr-container">
                             <div class="qr-item">
                                 <div class="qr-border">
-                                    <img class="qr-img" src="https://iili.io/C36Ge3v.png" alt="Website QR" crossorigin="anonymous">
+                                    <img class="qr-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Website QR" crossorigin="anonymous">
                                 </div>
                                 <div class="qr-text">
                                     <span class="qr-title">Website:</span>
@@ -1215,7 +1224,7 @@
                             </div>
                             <div class="qr-item">
                                 <div class="qr-border">
-                                    <img class="qr-img" src="https://iili.io/C36Vr1s.png" alt="Instagram QR" crossorigin="anonymous">
+                                    <img class="qr-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Instagram QR" crossorigin="anonymous">
                                 </div>
                                 <div class="qr-text">
                                     <span class="qr-title">Instagram:</span>
@@ -1258,7 +1267,7 @@
 
         // Preload template background image with progress tracking
         (function() {
-            const bgUrl = "https://iili.io/C3Lhlhx.png";
+            const bgUrl = "lol_compressed.jpg";
             const img = new Image();
             const percentEl = document.getElementById('loaderPercent');
             const statusEl = document.getElementById('loaderStatus');
@@ -1297,6 +1306,8 @@
             img.onload = function() {
                 document.getElementById('bill').style.backgroundImage = `url('${bgUrl}')`;
                 updateProgress(100, 2);
+                // Pre-cache base64 asynchronously so printing is instant
+                getLocalBase64(bgUrl).catch(err => console.error("Base64 pre-cache error:", err));
             };
             
             img.onerror = function() {
@@ -1472,6 +1483,29 @@
             document.getElementById('out-cust-alt').innerText = alt;
             document.getElementById('out-cust-addr').innerText = addr;
 
+            // Show/Hide contact lines based on value
+            const numWrap = document.getElementById('out-cust-num-wrap');
+            const altWrap = document.getElementById('out-cust-alt-wrap');
+            const contactRow = document.getElementById('out-contact-row');
+
+            if (num.trim()) {
+                numWrap.style.display = 'flex';
+            } else {
+                numWrap.style.display = 'none';
+            }
+
+            if (alt.trim()) {
+                altWrap.style.display = 'flex';
+            } else {
+                altWrap.style.display = 'none';
+            }
+
+            if (num.trim() || alt.trim()) {
+                contactRow.style.display = 'flex';
+            } else {
+                contactRow.style.display = 'none';
+            }
+
             let sub = 0, rows = '', realCount = 0;
             const renderLimit = Math.max(4, Math.min(7, items.length));
             for (let i = 0; i < renderLimit; i++) {
@@ -1513,6 +1547,26 @@
             }
         }
 
+        /* Helper to load local image as dataURL to bypass file:// canvas taint */
+        let cachedBase64Bg = null;
+        let isCachingPromise = null;
+        async function getLocalBase64(url) {
+            if (cachedBase64Bg) return cachedBase64Bg;
+            if (isCachingPromise) return isCachingPromise;
+            isCachingPromise = (async () => {
+                const response = await fetch(url);
+                const blob = await response.blob();
+                cachedBase64Bg = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+                return cachedBase64Bg;
+            })();
+            return isCachingPromise;
+        }
+
         /* ── CAPTURE ── */
         async function captureBill(bw) {
             const bill = document.getElementById('bill');
@@ -1526,9 +1580,32 @@
             else { await new Promise(r => setTimeout(r, 30)); }
 
             const isMac = /Macintosh|iPhone|iPad|iPod/.test(navigator.userAgent);
+            
+            // Dynamic scale from Print Quality dropdown
+            const qSel = document.getElementById('printQuality').value;
+            let scaleVal = isMac ? 1.5 : 2;
+            if (qSel === 'high') {
+                scaleVal = 4; // High Quality: 4x scale
+            } else if (qSel === 'max') {
+                scaleVal = 6; // Maximum Quality: 6x scale for ultra-sharp zoom
+            }
+
+            // Swap background image to lol_compressed.jpg for high quality renders
+            const originalBg = bill.style.backgroundImage;
+            if (qSel === 'high' || qSel === 'max') {
+                const isAlreadyCached = !!cachedBase64Bg;
+                try {
+                    const base64Bg = await getLocalBase64('lol_compressed.jpg');
+                    bill.style.backgroundImage = `url('${base64Bg}')`;
+                } catch (e) {
+                    // Fallback to relative local file path
+                    bill.style.backgroundImage = "url('lol_compressed.jpg')";
+                }
+                await new Promise(r => setTimeout(r, isAlreadyCached ? 50 : 450)); // wait for image load and render paint
+            }
 
             const canvas = await html2canvas(bill, {
-                scale: isMac ? 1.5 : 2,
+                scale: scaleVal,
                 useCORS: true,
                 allowTaint: false,
                 backgroundColor: bw ? '#ffffff' : '#f2e8d0',
@@ -1536,6 +1613,12 @@
                 imageTimeout: 0,
                 foreignObjectRendering: false
             });
+
+            // Restore background
+            if (qSel === 'high' || qSel === 'max') {
+                bill.style.backgroundImage = originalBg;
+            }
+
             if (bw) bill.classList.remove('bw-mode');
             bill.style.transform = saved;
             bill.style.boxShadow = savedShadow;
@@ -1568,8 +1651,17 @@
         async function makePDF(canvas, bw) {
             const { jsPDF } = window.jspdf;
             const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' });
-            // JPEG 0.88 quality: visually identical to 0.95 for print, ~30% smaller file
-            pdf.addImage(canvas.toDataURL('image/jpeg', 0.88), 'JPEG', 0, 0, 148, 210);
+            
+            // Dynamic image quality from Print Quality dropdown
+            const qSel = document.getElementById('printQuality').value;
+            let imgQuality = 0.88;
+            if (qSel === 'high') {
+                imgQuality = 0.98;
+            } else if (qSel === 'max') {
+                imgQuality = 1.0;
+            }
+
+            pdf.addImage(canvas.toDataURL('image/jpeg', imgQuality), 'JPEG', 0, 0, 148, 210);
             safeDL(pdf.output('blob'), fname('pdf', bw));
             await new Promise(r => setTimeout(r, 250));
         }
@@ -1624,6 +1716,44 @@
         /* INIT */
         renderCtrl(); upd();
     </script>
+<!-- Code injected by live-server -->
+<script>
+	// <![CDATA[  <-- For SVG support
+	if ('WebSocket' in window) {
+		(function () {
+			function refreshCSS() {
+				var sheets = [].slice.call(document.getElementsByTagName("link"));
+				var head = document.getElementsByTagName("head")[0];
+				for (var i = 0; i < sheets.length; ++i) {
+					var elem = sheets[i];
+					var parent = elem.parentElement || head;
+					parent.removeChild(elem);
+					var rel = elem.rel;
+					if (elem.href && typeof rel != "string" || rel.length == 0 || rel.toLowerCase() == "stylesheet") {
+						var url = elem.href.replace(/(&|\?)_cacheOverride=\d+/, '');
+						elem.href = url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cacheOverride=' + (new Date().valueOf());
+					}
+					parent.appendChild(elem);
+				}
+			}
+			var protocol = window.location.protocol === 'http:' ? 'ws://' : 'wss://';
+			var address = protocol + window.location.host + window.location.pathname + '/ws';
+			var socket = new WebSocket(address);
+			socket.onmessage = function (msg) {
+				if (msg.data == 'reload') window.location.reload();
+				else if (msg.data == 'refreshcss') refreshCSS();
+			};
+			if (sessionStorage && !sessionStorage.getItem('IsThisFirstTime_Log_From_LiveServer')) {
+				console.log('Live reload enabled.');
+				sessionStorage.setItem('IsThisFirstTime_Log_From_LiveServer', true);
+			}
+		})();
+	}
+	else {
+		console.error('Upgrade your browser. This Browser is NOT supported WebSocket for Live-Reloading.');
+	}
+	// ]]>
+</script>
 </body>
 
 </html>
